@@ -2,8 +2,8 @@ version: 0.2
 phases:
 install:
 commands:
-# Sahi directory me ja kar dependencies install karein
-- echo "Installing frontend and backend dependencies..."
+# Is command se CodeBuild sahi directory me ja kar npm install karega.
+- echo "Installing dependencies..."
 - cd frontend
 - npm install
 - cd ../  # Wapas root directory me aane ke liye
