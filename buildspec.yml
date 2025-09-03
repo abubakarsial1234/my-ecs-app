@@ -2,17 +2,16 @@ version: 0.2
 phases:
 install:
 commands:
-# Is command se CodeBuild sahi directory me ja kar npm install karega.
+# Frontend aur backend dependencies install karein.
 - echo "Installing dependencies..."
 - cd frontend
 - npm install
-- cd ../  # Wapas root directory me aane ke liye
+- cd ../
 - cd backend
 - npm install
 - cd ../
 pre_build:
 commands:
-# ECR me login karein
 - echo "Logging in to Amazon ECR..."
 - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 - REPOSITORY_URI_FRONTEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-frontend-repo
