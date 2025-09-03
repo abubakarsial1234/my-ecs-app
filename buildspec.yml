@@ -1,126 +1,37 @@
 version: 0.2
 
-env:
-  variables:
-    FRONTEND_REPO_NAME: "simple-frontend-repo"
-    BACKEND_REPO_NAME: "simple-backend-repo"
-
 phases:
   install:
-    runtime-versions:
-      nodejs: 20
-      docker: 20
     commands:
-      - echo "CodeBuild started on `date`"
+      # Frontend aur backend dependencies install karein
       - echo "Installing dependencies..."
-      - |
-        if [ -d "frontend" ]; then
-          echo "Installing frontend dependencies..."
-          cd frontend
-          npm ci --only=production=false
-          cd ../
-        else
-          echo "Frontend directory not found!"
-          exit 1
-        fi
-      - |
-        if [ -d "backend" ]; then
-          echo "Installing backend dependencies..."
-          cd backend
-          npm ci --only=production=false
-          cd ../
-        else
-          echo "Backend directory not found!"
-          exit 1
-        fi
-      
+      - cd frontend
+      - npm install
+      - cd ../
+      - cd backend
+      - npm install
+      - cd ../
   pre_build:
     commands:
-      - echo "Pre-build started on `date`"
-      - echo "Checking required environment variables..."
-      - |
-        if [ -z "$AWS_REGION" ]; then
-          echo "AWS_REGION environment variable is not set"
-          exit 1
-        fi
-      - |
-        if [ -z "$AWS_ACCOUNT_ID" ]; then
-          echo "AWS_ACCOUNT_ID environment variable is not set"
-          exit 1
-        fi
       - echo "Logging in to Amazon ECR..."
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-      - REPOSITORY_URI_FRONTEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$FRONTEND_REPO_NAME
-      - REPOSITORY_URI_BACKEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$BACKEND_REPO_NAME
-      - echo "Frontend repository URI: $REPOSITORY_URI_FRONTEND"
-      - echo "Backend repository URI: $REPOSITORY_URI_BACKEND"
-      - echo "Creating ECR repositories if they don't exist..."
-      - |
-        aws ecr describe-repositories --repository-names $FRONTEND_REPO_NAME --region $AWS_REGION 2>/dev/null || {
-          echo "Creating frontend ECR repository..."
-          aws ecr create-repository --repository-name $FRONTEND_REPO_NAME --region $AWS_REGION
-        }
-      - |
-        aws ecr describe-repositories --repository-names $BACKEND_REPO_NAME --region $AWS_REGION 2>/dev/null || {
-          echo "Creating backend ECR repository..."
-          aws ecr create-repository --repository-name $BACKEND_REPO_NAME --region $AWS_REGION
-        }
-      
+      - REPOSITORY_URI_FRONTEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-frontend-repo
+      - REPOSITORY_URI_BACKEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-backend-repo
   build:
     commands:
-      - echo "Build started on `date`"
-      - echo "Building Docker images..."
-      - IMAGE_TAG=${CODEBUILD_BUILD_NUMBER:-latest}
-      - echo "Using image tag: $IMAGE_TAG"
-      - |
-        echo "Building frontend Docker image..."
-        if [ -f "frontend/Dockerfile" ]; then
-          docker build -t $REPOSITORY_URI_FRONTEND:latest -t $REPOSITORY_URI_FRONTEND:$IMAGE_TAG ./frontend/
-          echo "Frontend image built successfully"
-        else
-          echo "Frontend Dockerfile not found!"
-          exit 1
-        fi
-      - |
-        echo "Building backend Docker image..."
-        if [ -f "backend/Dockerfile" ]; then
-          docker build -t $REPOSITORY_URI_BACKEND:latest -t $REPOSITORY_URI_BACKEND:$IMAGE_TAG ./backend/
-          echo "Backend image built successfully"
-        else
-          echo "Backend Dockerfile not found!"
-          exit 1
-        fi
-      
+      - echo "Building frontend Docker image..."
+      - docker build -t $REPOSITORY_URI_FRONTEND:latest ./frontend/
+      - echo "Building backend Docker image..."
+      - docker build -t $REPOSITORY_URI_BACKEND:latest ./backend/
   post_build:
     commands:
-      - echo "Post-build started on `date`"
-      - echo "Pushing Docker images to ECR..."
-      - IMAGE_TAG=${CODEBUILD_BUILD_NUMBER:-latest}
-      - echo "Pushing frontend images..."
+      - echo "Pushing frontend Docker image to ECR..."
       - docker push $REPOSITORY_URI_FRONTEND:latest
-      - docker push $REPOSITORY_URI_FRONTEND:$IMAGE_TAG
-      - echo "Pushing backend images..."
+      - echo "Pushing backend Docker image to ECR..."
       - docker push $REPOSITORY_URI_BACKEND:latest
-      - docker push $REPOSITORY_URI_BACKEND:$IMAGE_TAG
-      - echo "Creating image definitions file..."
-      - |
-        cat > imagedefinitions.json << EOF
-        [
-          {
-            "name": "frontend-container",
-            "imageUri": "$REPOSITORY_URI_FRONTEND:$IMAGE_TAG"
-          },
-          {
-            "name": "backend-container", 
-            "imageUri": "$REPOSITORY_URI_BACKEND:$IMAGE_TAG"
-          }
-        ]
-        EOF
-      - echo "Image definitions file created:"
-      - cat imagedefinitions.json
-      - echo "Build completed on `date`"
+      - echo "Writing image URI to file for deployment..."
+      - printf '[{"name":"frontend-container","imageUri":"%s"},{"name":"backend-container","imageUri":"%s"}]' $REPOSITORY_URI_FRONTEND:latest $REPOSITORY_URI_BACKEND:latest > imagedefinitions.json
 
 artifacts:
   files:
     - imagedefinitions.json
-  name: ImageDefinitionsArtifact-$CODEBUILD_BUILD_NUMBER
