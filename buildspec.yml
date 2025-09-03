@@ -1,26 +1,36 @@
 version: 0.2
 phases:
-  pre_build:
-    commands:
-      # ECR me login karein
-      - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-      - REPOSITORY_URI_FRONTEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-frontend-repo
-      - REPOSITORY_URI_BACKEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-backend-repo
-  build:
-    commands:
-      - echo "Building frontend Docker image..."
-      - docker build -t $REPOSITORY_URI_FRONTEND:latest ./frontend/
-      - echo "Building backend Docker image..."
-      - docker build -t $REPOSITORY_URI_BACKEND:latest ./backend/
-  post_build:
-    commands:
-      - echo "Pushing frontend Docker image to ECR..."
-      - docker push $REPOSITORY_URI_FRONTEND:latest
-      - echo "Pushing backend Docker image to ECR..."
-      - docker push $REPOSITORY_URI_BACKEND:latest
-      - echo "Writing image URI to file for deployment..."
-      - printf '[{"name":"frontend-container","imageUri":"%s"},{"name":"backend-container","imageUri":"%s"}]' $REPOSITORY_URI_FRONTEND:latest $REPOSITORY_URI_BACKEND:latest > imagedefinitions.json
+install:
+commands:
+# Sahi directory me ja kar dependencies install karein
+- echo "Installing frontend and backend dependencies..."
+- cd frontend
+- npm install
+- cd ../  # Wapas root directory me aane ke liye
+- cd backend
+- npm install
+- cd ../
+pre_build:
+commands:
+# ECR me login karein
+- echo "Logging in to Amazon ECR..."
+- aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+- REPOSITORY_URI_FRONTEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-frontend-repo
+- REPOSITORY_URI_BACKEND=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/simple-backend-repo
+build:
+commands:
+- echo "Building frontend Docker image..."
+- docker build -t $REPOSITORY_URI_FRONTEND:latest ./frontend/
+- echo "Building backend Docker image..."
+- docker build -t $REPOSITORY_URI_BACKEND:latest ./backend/
+post_build:
+commands:
+- echo "Pushing frontend Docker image to ECR..."
+- docker push $REPOSITORY_URI_FRONTEND:latest
+- echo "Pushing backend Docker image to ECR..."
+- docker push $REPOSITORY_URI_BACKEND:latest
+- echo "Writing image URI to file for deployment..."
+- printf '[{"name":"frontend-container","imageUri":"%s"},{"name":"backend-container","imageUri":"%s"}]' $REPOSITORY_URI_FRONTEND:latest $REPOSITORY_URI_BACKEND:latest > imagedefinitions.json
 artifacts:
-  files:
-    - imagedefinitions.json
+files:
+- imagedefinitions.json
